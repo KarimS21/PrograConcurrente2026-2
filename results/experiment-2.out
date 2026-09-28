@@ -1,0 +1,3 @@
+sequential/0       trimmed_mean_ms=    27.085 stddev_ms=     0.400 n=7
+worker_pool/2      trimmed_mean_ms=    67.055 stddev_ms=     0.799 n=7
+results written to results/inference-2.csv

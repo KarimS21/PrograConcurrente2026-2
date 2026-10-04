@@ -124,15 +124,19 @@ Las aserciones verifican que:
 
 Esto modela la ausencia de una condición de carrera en la actualización del estado compartido.
 
-La verificación se ejecutó con Spin 6.4.9 dentro de Docker. Se exploraron 18.403 estados almacenados y 34.371 transiciones, sin violaciones de aserciones ni ciclos de aceptación:
+La verificación se ejecutó con Spin 6.4.9 dentro de Docker en dos modos. En modo safety, que habilita la detección de estados finales inválidos, se exploraron 55.021 estados almacenados y 100.425 transiciones, con `errors: 0`. En modo LTL se exploraron 84.852 estados almacenados y 271.011 transiciones, también con `errors: 0`:
 
 ```text
-State-vector 68 byte, depth reached 50, errors: 0
-18403 states, stored
-34371 transitions (= stored+matched)
+Safety: errors: 0
+55021 states, stored
+100425 transitions
+
+LTL: errors: 0
+84852 states, stored
+271011 transitions
 ```
 
-El resultado `errors: 0` confirma que, para el espacio de estados finito definido por tres workers y cinco trabajos, el modelo no encuentra una ejecución que viole las propiedades especificadas.
+El modo safety comprueba ausencia de deadlocks/estados finales inválidos y violaciones de aserciones. El modo LTL comprueba la propiedad de progreso `all_jobs_complete`: mientras existan trabajos pendientes, eventualmente todos deben completarse. La aserción `assert(!inCritical)` representa la exclusión mutua de la sección crítica. El resultado `errors: 0` confirma estas propiedades para el espacio de estados finito definido por tres workers y cinco trabajos.
 
 ## l. Speedup y media recortada
 
@@ -204,10 +208,6 @@ La tabla anterior debería interpretarse como uso máximo observado durante cada
 
 Un mayor uso de CPU no implica necesariamente un menor tiempo de ejecución. En este caso, cuatro workers utilizan más CPU que la versión con un worker, pero el coste de coordinación sigue siendo superior a la ganancia obtenida por el paralelismo.
 
-## o. Participación del grupo
-
-Este apartado debe ser completado por el coordinador del grupo. Se debe adjuntar el reporte de participación solicitado por la asignatura, indicando las tareas realizadas por cada integrante.
-
 ## Reproducibilidad
 
 Para ejecutar las pruebas:
@@ -250,9 +250,3 @@ Para ejecutar con el dataset completo, se puede utilizar `-max-rows 0`, aunque e
 ```powershell
 go run ./cmd/experiment -max-rows 0 -workers 1,2,4,8
 ```
-
-## Pendientes antes de la entrega
-
-- Confirmar si la docente exige usar todo el dataset o permite reportar una muestra reproducible.
-- Adjuntar el reporte de participación elaborado por el coordinador.
-- Mantener la misma configuración experimental al regenerar la tabla y el gráfico.

@@ -1,0 +1,33 @@
+﻿Fecha de revisión: 2026-10-04
+Base del repositorio: f9a7181
+
+COMANDO: git log --all --graph --decorate --oneline
+* f9a7181 (HEAD -> main, origin/main, origin/HEAD) Entregable Semana 7
+*   0cd16be Merge branch 'main' of https://github.com/KarimS21/PrograConcurrente2026-2
+|\  
+| *   1616a82 Merge pull request #1 from jotabe12/main
+| |\  
+| | * e9cd116 Add README
+| |/  
+* / a41a60e PC2 contenido
+|/  
+* 08f851f first commit
+
+COMANDO: git shortlog -sne --all
+     4	KarimS21 <U201816862@upc.edu.pe>
+     1	KarimS21 <112829652+KarimS21@users.noreply.github.com>
+     1	jotabe12 <u202221147@upc.edu.pe>
+
+COMANDO: git branch -a
+* main
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/main
+
+COMANDO: git remote -v
+origin	https://github.com/KarimS21/PrograConcurrente2026-2.git (fetch)
+origin	https://github.com/KarimS21/PrograConcurrente2026-2.git (push)
+
+COMANDO: git ls-remote --heads origin
+f9a7181123647e450f7ba0c3383b524875537b52 refs/heads/main
+
+NOTA: registro del historial existente; los cambios locales de documentación y Promela no están incluidos en un nuevo commit.

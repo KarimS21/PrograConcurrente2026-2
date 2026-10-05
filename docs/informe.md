@@ -1,252 +1,250 @@
-# Red neuronal y procesamiento concurrente
+# Informe final: red neuronal y concurrencia en Go
 
-## Resumen del trabajo
+**Curso:** Programación Concurrente y Distribuida
 
-El proyecto implementa una red neuronal pequeña para regresión de `fare_amount` sobre registros de taxis. La red se entrena de forma secuencial y luego se comparan dos estrategias de inferencia:
+**Repositorio:** [PrograConcurrente2026-2](https://github.com/KarimS21/PrograConcurrente2026-2)
 
-- **Secuencial:** un registro por vez en una única goroutine.
-- **Concurrente:** patrón **Worker Pool**, donde varios workers ejecutan el forward pass de distintos registros de forma independiente.
+**Base revisada:** `f9a7181`, rama `main`, más cambios locales de Promela y documentación.
 
-La implementación de la red se realizó desde cero en Go, sin utilizar una biblioteca de Machine Learning. El dataset se carga desde un CSV limpio ubicado en `processed/yellow_tripdata_2026-01.csv`.
+**Fecha de revisión:** 4 de octubre de 2026.
 
-## Modelo de datos y red neuronal
+## 1. Objetivo y funcionamiento
 
-Cada registro utiliza nueve variables de entrada:
+El proyecto predice la tarifa de viajes de taxi, representada por `fare_amount`, mediante una red neuronal implementada desde cero en Go. El entrenamiento es secuencial y la inferencia se compara usando dos estrategias: un recorrido secuencial y un Worker Pool.
 
-1. `passenger_count`
-2. `trip_distance`
-3. `trip_time_min`
-4. `RatecodeID`
-5. `PULocationID`
-6. `DOLocationID`
-7. `payment_type`
-8. `pickup_hour`
-9. `pickup_day_of_week`
+La red tiene nueve entradas, dos capas ocultas de 16 y 8 neuronas con activación ReLU y una salida lineal. Las entradas incluyen pasajeros, distancia, duración, códigos de tarifa y zonas, tipo de pago, hora y día de recogida. La normalización se ajusta con las muestras de entrenamiento y después se aplica a las de evaluación.
 
-La variable objetivo es `fare_amount`.
+El trabajo busca comprobar que la coordinación concurrente es correcta y analizar si mejora el tiempo de ejecución. También identifica mejoras de calidad, seguridad y evaluación del modelo.
 
-La arquitectura utilizada es:
+## 2. Implementación y sincronización
+
+En la versión secuencial, `PredictSequential` recorre las muestras y guarda cada predicción. En la versión concurrente, `PredictWorkerPool` distribuye los registros entre workers:
 
 ```text
-Input(9)
-   |
-Dense(16) + ReLU
-   |
-Dense(8) + ReLU
-   |
-Dense(1) + Linear
-   |
-Prediccion de fare_amount
+Productor --> Canal jobs --> Workers --> Canal results --> Consumidor
 ```
 
-Las entradas se normalizan utilizando la media y la desviación estándar calculadas sobre el conjunto de entrenamiento. Las estadísticas de normalización no se calculan sobre el conjunto de evaluación, evitando contaminación entre entrenamiento y evaluación.
+Cada trabajo lleva el índice de la muestra. El worker devuelve ese índice con la predicción, y el consumidor la guarda en su posición original. Así, aunque los trabajos terminen en distinto orden, las predicciones mantienen su correspondencia con los datos.
 
-El entrenamiento utiliza descenso de gradiente por lote completo, función de activación ReLU y error cuadrático medio (MSE). La inferencia no modifica los pesos de la red.
+Los mecanismos de sincronización son:
 
-## j. Implementación secuencial y concurrente
+- **Goroutines:** ejecutan los workers, el productor y el coordinador de cierre.
+- **Canales:** comunican trabajos y resultados; `jobs` no tiene buffer y `results` tiene capacidad igual al número de muestras.
+- **WaitGroup:** permite cerrar `results` después de que todos los workers terminen.
+- **Escritor único:** solo el consumidor escribe el arreglo de predicciones.
 
-La implementación secuencial recorre el arreglo de muestras y ejecuta `Predict` para cada registro:
+El productor cierra `jobs` después del último envío. Los workers terminan cuando se agota ese canal y el coordinador cierra `results` al finalizar todos ellos. El consumidor recibe hasta agotar los resultados.
 
-```text
-para cada muestra:
-    prediccion = red.forward(muestra.features)
-    guardar prediccion
-```
+Los workers comparten los pesos solo para lectura. Este diseño requiere que el entrenamiento haya terminado y que las muestras no se modifiquen durante la inferencia.
 
-La implementación concurrente utiliza un Worker Pool:
+## 3. Verificación formal en Spin — 4 puntos
 
-```text
-Productor
-    |
-    v
-Canal de trabajos
-    |
-    +--> Worker 1 --> forward --> resultado
-    +--> Worker 2 --> forward --> resultado
-    +--> Worker 3 --> forward --> resultado
-    |
-Canal de resultados
-    |
-Predicciones ordenadas
-```
+### Modelo utilizado
 
-Cada trabajo contiene el índice y la muestra. El resultado contiene el mismo índice y la predicción. De esta forma, los workers pueden terminar en distinto orden sin alterar la correspondencia entre registro y predicción.
+El archivo [worker_pool.pml](../promela/worker_pool.pml) representa **cinco trabajos y tres workers**. Incluye productor, workers, coordinador de cierre y consumidor. Cada predicción se abstrae como el envío de un identificador; no se modela el cálculo numérico de la red.
 
-La implementación se encuentra en:
+| Elemento del modelo | Equivalente en Go |
+|---|---|
+| Canal `jobs` de capacidad cero | Canal de trabajos sin buffer. |
+| Canal `results` de capacidad `JOBS` | Canal de resultados con capacidad igual al total de muestras. |
+| `jobsClosed` y `resultsClosed` | Cierre de los canales, representado con banderas. |
+| `workersDone` | Finalización coordinada mediante `WaitGroup`. |
+| `completed[job]` | Registro de un resultado en su posición original. |
 
-- `go-code/redneuronal.go`
-- `go-code/inference.go`
-- `go-code/dataset.go`
+### Ausencia de deadlocks
 
-## k. Algoritmo y mecanismos de sincronización
+Un deadlock ocurre cuando los procesos quedan bloqueados y no existe una transición que permita continuar. La comprobación de safety busca estados finales inválidos y violaciones de las aserciones.
 
-El productor envía trabajos al canal `jobs`. Los workers reciben trabajos hasta que el canal se cierra, realizan el forward pass y envían un resultado al canal `results`.
+Se ejecutó el verificador con `-q`, que exige canales vacíos en los estados finales válidos, y `-b`, que reporta como error exceder el límite de profundidad. La interpretación de estas opciones se basa en la [documentación oficial de Pan](https://spinroot.com/spin/Man/Pan.html).
 
-Los mecanismos utilizados son:
+### Exclusión mutua
 
-- **Channels:** comunicación entre el productor y los workers, y entre los workers y el consumidor de resultados.
-- **Goroutines:** ejecución concurrente de los workers.
-- **`sync.WaitGroup`:** espera a que todos los workers terminen antes de cerrar el canal de resultados.
-- **Índices de resultados:** cada worker escribe conceptualmente en una posición distinta del arreglo final.
-
-La red neuronal se comparte entre los workers solamente para lectura. Como los pesos no cambian durante la inferencia, no es necesario utilizar un mutex para proteger la red. Cada resultado tiene un índice único, por lo que no hay dos workers escribiendo sobre la misma posición.
-
-La función de evaluación calcula:
-
-$$
-MAE = \frac{1}{n}\sum_{i=1}^{n}|y_i - \hat{y}_i|
-$$
-
-$$
-MSE = \frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{y}_i)^2
-$$
-
-## Modelo inicial en Promela
-
-El modelo ubicado en `promela/worker_pool.pml` representa tres workers y cinco trabajos. Los trabajos se comunican mediante el canal `jobs` y las finalizaciones mediante `results`.
-
-La sección crítica abstracta se expresa mediante un bloque `atomic`:
+La región de escritura está en el consumidor:
 
 ```promela
-atomic {
-    assert(job < JOBS);
-    assert(!completed[job]);
-    completed[job] = true;
-    completedCount++;
-}
+writers++;
+assert(writers == 1);
+assert(!completed[job]);
+completed[job] = true;
+completedCount++;
+assert(completedCount <= JOBS);
+writers--;
 ```
 
-Las aserciones verifican que:
+`writers` representa la cantidad de escritores activos. La aserción comprueba que exista uno durante la actualización. La exclusión de escritura se consigue por diseño: solo un proceso modifica los resultados. No se está verificando un mutex entre varios escritores.
 
-- El identificador del trabajo sea válido.
-- Un trabajo no sea marcado dos veces como completado.
-- El número de trabajos completados no supere el total.
+También se comprueba que cada índice sea válido, que ningún trabajo se complete dos veces y que todos los resultados estén registrados al terminar. La escritura no está encerrada en `atomic`; ese mecanismo solo se usa para abstraer la actualización sincronizada del contador de workers.
 
-Esto modela la ausencia de una condición de carrera en la actualización del estado compartido.
+### Finalización de los trabajos
 
-La verificación se ejecutó con Spin 6.4.9 dentro de Docker en dos modos. En modo safety, que habilita la detección de estados finales inválidos, se exploraron 55.021 estados almacenados y 100.425 transiciones, con `errors: 0`. En modo LTL se exploraron 84.852 estados almacenados y 271.011 transiciones, también con `errors: 0`:
+Se verificó la propiedad:
+
+```promela
+ltl all_jobs_complete { <> (completedCount == JOBS && resultsClosed) }
+```
+
+El operador `<>` significa “eventualmente”: todos los resultados deben recibirse y el canal de resultados debe cerrarse. Su significado se recoge en la [documentación oficial de LTL de Spin](https://spinroot.com/spin/Man/ltl.html).
+
+### Resultados y explicación
+
+La verificación se repitió el 4 de octubre de 2026 con **Spin 6.5.2 y GCC 13.3.0 en Ubuntu mediante WSL**.
+
+| Comprobación | Estados almacenados | Transiciones | Errores |
+|---|---:|---:|---:|
+| Safety: deadlocks y aserciones | 1.160.528 | 3.129.399 | 0 |
+| LTL: finalización de trabajos | 1.158.256 | 7.411.485 | 0 |
+
+Las dos búsquedas finalizaron sin exceder el límite de profundidad. Las salidas completas están en [spin-safety.txt](../results/spin-safety.txt), [spin-ltl.txt](../results/spin-ltl.txt) y [spin-environment.txt](../results/spin-environment.txt), que registra versiones y hash del modelo.
+
+**Interpretación:** no se encontraron deadlocks ni violaciones de exclusión de escritura en el modelo analizado. Tampoco se encontraron contraejemplos a la finalización de los trabajos. Los deadlocks se verifican en safety; la búsqueda LTL tiene desactivada la comprobación de estados finales inválidos.
+
+Estos resultados cubren el protocolo finito modelado. No demuestran la exactitud de las predicciones ni ausencia de carreras en cualquier ejecución Go. Se supone que el cálculo de cada predicción termina.
+
+Para repetir la comprobación desde la raíz del repositorio en Linux o WSL:
+
+```sh
+sh scripts/verify_spin.sh
+```
+
+El script necesita GCC y Spin. Si Spin no está disponible, obtiene una copia temporal del paquete en Ubuntu/Debian sin instalarla en el sistema. Los comandos principales que ejecuta son:
+
+```sh
+spin -a /ruta/al/proyecto/promela/worker_pool.pml
+gcc -O2 -DNOCLAIM -DSAFETY -o pan-safety pan.c
+./pan-safety -b -q
+gcc -O2 -o pan-ltl pan.c
+./pan-ltl -a -b
+```
+
+## 4. Resultados de rendimiento
+
+Se recalcularon las estadísticas de [inference_runs.csv](../results/inference_runs.csv). **No se repitió el benchmark** durante esta revisión. La configuración descrita en la documentación existente usa 100.000 filas, 10.000 para entrenamiento, 90.000 para evaluación, una época y semilla 42.
+
+Hay 11 mediciones por modalidad. Se eliminan los dos tiempos menores y los dos mayores para obtener una media recortada con siete observaciones. El speedup se calcula como:
 
 ```text
-Safety: errors: 0
-55021 states, stored
-100425 transitions
-
-LTL: errors: 0
-84852 states, stored
-271011 transitions
+Speedup = tiempo secuencial / tiempo concurrente
 ```
 
-El modo safety comprueba ausencia de deadlocks/estados finales inválidos y violaciones de aserciones. El modo LTL comprueba la propiedad de progreso `all_jobs_complete`: mientras existan trabajos pendientes, eventualmente todos deben completarse. La aserción `assert(!inCritical)` representa la exclusión mutua de la sección crítica. El resultado `errors: 0` confirma estas propiedades para el espacio de estados finito definido por tres workers y cinco trabajos.
-
-## l. Speedup y media recortada
-
-El speedup se calculó mediante:
-
-$$
-Speedup = \frac{T_{secuencial}}{T_{concurrente}}
-$$
-
-La medición se realizó con la siguiente configuración:
-
-- 100.000 filas cargadas.
-- 10.000 filas utilizadas para entrenamiento.
-- 90.000 filas utilizadas para evaluación.
-- Una época de entrenamiento.
-- Semilla de inicialización igual a `42`.
-- 11 ejecuciones por configuración.
-- Se eliminó el 20% de los valores más bajos y el 20% de los más altos.
-- La media se calculó con las siete ejecuciones restantes.
-- El tiempo de carga y entrenamiento se excluyó del tiempo de inferencia.
-
-| Modelo | Workers | Media recortada (ms) | Desv. estándar (ms) | Speedup |
+| Modalidad | Workers | Media recortada (ms) | Desv. estándar (ms) | Speedup |
 |---|---:|---:|---:|---:|
-| Secuencial | 0 | 26.083 | 0.191 | 1.000 |
-| Worker Pool | 1 | 69.143 | 0.833 | 0.377 |
-| Worker Pool | 2 | 60.986 | 0.791 | 0.428 |
-| Worker Pool | 4 | 59.143 | 1.641 | 0.441 |
-| Worker Pool | 8 | 63.999 | 1.308 | 0.408 |
+| Secuencial | 0 | 26,083 | 0,191 | 1,000 |
+| Worker Pool | 1 | 69,143 | 0,833 | 0,377 |
+| Worker Pool | 2 | 60,986 | 0,791 | 0,428 |
+| Worker Pool | 4 | 59,143 | 1,641 | 0,441 |
+| Worker Pool | 8 | 63,999 | 1,308 | 0,408 |
 
-Los resultados completos se encuentran en `results/inference_runs.csv` y el gráfico correspondiente en `results/inference_speedup.png`.
+El mejor resultado concurrente fue con cuatro workers. Sin embargo, su speedup de 0,441 indica que tardó aproximadamente **2,27 veces más** que la versión secuencial.
+
+Una explicación probable es que cada predicción hace poco cálculo y el coste de canales y planificación supera el ahorro del paralelismo. Esta causa debe confirmarse con un perfil de CPU. Probar trabajos por lotes permitiría reducir la cantidad de intercambios por canal.
 
 ![Tiempo de inferencia y speedup](../results/inference_speedup.png)
 
-## m. Análisis de speedup, escalabilidad y trade-offs
+### Recursos y calidad predictiva
 
-La solución secuencial obtuvo el mejor tiempo para esta configuración. El mejor resultado del Worker Pool se obtuvo con cuatro workers, pero su speedup fue aproximadamente `0.441`, menor que uno. Esto significa que la versión concurrente tardó más que la secuencial.
+Los máximos guardados en [resource_runs.csv](../results/resource_runs.csv) son:
 
-La razón principal es que el forward pass de la red es pequeño: solamente contiene dos capas ocultas de 16 y 8 neuronas. En consecuencia, el coste de enviar trabajos por canales, planificar goroutines y coordinar la finalización de los workers es significativo frente al coste del cálculo matemático.
+| Workers | CPU máxima del proceso (%) | Working set máximo (MiB) | Heap máximo (MiB) | Goroutines máximas |
+|---|---:|---:|---:|---:|
+| 1 | 14,61 | 46,05 | 36,48 | 5 |
+| 2 | 19,32 | 46,14 | 36,48 | 6 |
+| 4 | 22,72 | 46,48 | 36,50 | 8 |
+| 8 | 22,61 | 46,52 | 36,52 | 12 |
 
-El aumento de workers tampoco produjo una mejora monotónica:
+Las cifras de CPU y working set corresponden al proceso completo, que incluye carga, entrenamiento e inferencias. No permiten atribuir el consumo exclusivamente al Worker Pool. El aumento de goroutines evidencia concurrencia, pero no demuestra por sí solo ejecución simultánea en varios núcleos.
 
-- Con un worker, el overhead es máximo porque se agrega concurrencia sin paralelismo real.
-- Con dos workers, el tiempo mejora respecto a un worker.
-- Con cuatro workers se obtiene el mejor resultado concurrente.
-- Con ocho workers el tiempo aumenta nuevamente, debido al overhead de coordinación y planificación.
+El CSV de tiempos registra MAE = **19,1560** y MSE = **711,4134** en todas las modalidades. La igualdad de estas métricas es coherente con usar la misma red, pero no acredita por sí sola igualdad de cada predicción. Existe una prueba que compara las predicciones por índice; su ejecución está pendiente.
 
-La solución concurrente sería más conveniente si cada trabajo tuviera un forward pass más costoso, si la red fuera más grande o si se procesaran lotes suficientemente grandes como para amortizar el coste de comunicación.
+El MAE representa el error absoluto medio y el MSE penaliza más los errores grandes. Sin una predicción de referencia no se puede concluir que esos valores indiquen buena precisión.
 
-## n. Uso y rendimiento de recursos
+Además, el CSV de tiempos guardado no contiene las columnas de monitoreo que escribe el experimentador actual. Debe conservarse como evidencia histórica y repetirse la medición con la versión actual para establecer una correspondencia completa entre código y resultados.
 
-La medición se realizó con 100.000 filas, 10.000 filas de entrenamiento y 11 ejecuciones por configuración. Para cada configuración se ejecutó el proceso de experimentación por separado. La aplicación registró memoria y goroutines mediante `runtime.ReadMemStats`; un script de PowerShell registró CPU y working set del proceso.
+## 5. Análisis asistido por IA e informe de GAPs — 5 puntos
 
-| Workers | CPU máxima del proceso (%) | Working set máximo (MB) | Heap máximo de Go (MB) | Memoria `Sys` máxima (MB) | Goroutines máximas |
-|---:|---:|---:|---:|---:|---:|
-| 1 | 14.61 | 46.05 | 36.48 | 52.39 | 5 |
-| 2 | 19.32 | 46.14 | 36.48 | 52.16 | 6 |
-| 4 | 22.72 | 46.48 | 36.50 | 52.15 | 8 |
-| 8 | 22.61 | 46.52 | 36.52 | 52.21 | 12 |
+**Herramienta seleccionada: GitHub Copilot Chat en VS Code.**
 
-Los resultados completos se encuentran en `results/resource_runs.csv`. La tabla de recursos se generó con `scripts/measure_resources.ps1`.
+El [prompt estructurado](ai-code-review-prompt.md) solicita revisar calidad, seguridad, concurrencia, datos y rendimiento. El [informe de GAPs](gap-analysis.md) presenta hallazgos con ubicación, evidencia, impacto y recomendación.
 
-La CPU máxima aumenta desde 14.61% con un worker hasta 22.72% con cuatro workers. Con ocho workers no se observa una mejora adicional y el valor disminuye ligeramente a 22.61%, lo cual es consistente con el hecho de que el equipo tiene otros costes de planificación y sincronización.
+Los hallazgos principales son:
 
-El working set se mantiene aproximadamente entre 46.05 MB y 46.52 MB. El heap de Go también permanece prácticamente constante, entre 36.48 MB y 36.52 MB. Esto indica que agregar workers no produce un crecimiento significativo de memoria para este diseño, porque los workers comparten la red y procesan las muestras existentes.
+- Falta de rechazo de `NaN`, infinitos y fechas incoherentes en el lector CSV.
+- Diferencias de validación entre las funciones secuencial y concurrente.
+- Pruebas que dependen de un CSV excluido del repositorio.
+- Necesidad de documentar que entrenamiento e inferencia no deben ejecutarse simultáneamente sobre la misma red.
+- Medición de recursos que incluye el proceso completo e instrumentación.
+- Variables categóricas tratadas como continuas y ausencia de una predicción de referencia.
 
-El número máximo de goroutines sí aumenta con la cantidad de workers: pasa de 5 con un worker a 12 con ocho workers. Este aumento confirma que el paralelismo se está creando, aunque no se traduzca directamente en una reducción del tiempo de inferencia.
+Se reconocen también controles correctos: cierre coordinado de canales, escritor único, resultados indexados y normalización ajustada con el conjunto de entrenamiento.
 
-La tabla anterior debería interpretarse como uso máximo observado durante cada proceso experimental. La CPU fue muestreada externamente con PowerShell y la memoria/goroutines fueron observadas desde Go.
+La revisión debe contrastarse con el código: el uso de canales no garantiza mayor velocidad, una ruta local de archivo no demuestra una vulnerabilidad y los resultados de Spin no cubren toda la implementación Go. Falta adjuntar una captura o exportación de la interacción con la herramienta seleccionada para acreditar este criterio.
 
-Un mayor uso de CPU no implica necesariamente un menor tiempo de ejecución. En este caso, cuatro workers utilizan más CPU que la versión con un worker, pero el coste de coordinación sigue siendo superior a la ganancia obtenida por el paralelismo.
+## 6. Conclusiones y recomendaciones del alumno — 4 puntos
 
-## Reproducibilidad
+### Conclusiones
 
-Para ejecutar las pruebas:
+1. **La concurrencia no garantiza mayor velocidad.** En las mediciones guardadas, la versión secuencial fue más rápida. Consideramos que la cantidad de workers debe elegirse según el coste de cada tarea y las mediciones del equipo.
+2. **La coordinación es parte central de la solución.** Conservar los índices, cerrar los canales en orden y tener un único escritor permite recibir resultados sin perder su correspondencia con los registros.
+3. **La verificación formal aporta evidencia concreta.** Spin no encontró deadlocks ni violaciones de las aserciones en el modelo. Entendemos que esta conclusión tiene un alcance limitado y debe complementarse con pruebas de Go.
+4. **La calidad del modelo y la eficiencia son objetivos distintos.** Reducir tiempos no demuestra que la red prediga mejor. Hace falta comparar el error con una solución de referencia.
+5. **La entrega necesita trazabilidad.** Los resultados deben acompañarse de comandos, versiones y participación verificable de los integrantes.
+
+### Recomendaciones
+
+Proponemos priorizar la validación de datos y las pruebas reproducibles antes de optimizar el Worker Pool. Después, mediríamos tiempos y recursos por separado y compararíamos trabajos individuales contra lotes.
+
+Para mejorar el modelo predictivo, compararíamos una codificación categórica y una predicción basada en la media de las tarifas de entrenamiento. También completaríamos la evidencia de la interacción con IA y registraríamos las siguientes contribuciones mediante ramas y PR.
+
+Estas conclusiones son una propuesta de redacción para que el equipo las revise y pueda defenderlas con sus propias palabras.
+
+## 7. Sustentación del informe y anexos — 5 puntos
+
+La exposición debe explicar el problema, el diseño concurrente, las propiedades verificadas y lo que realmente muestran los resultados. Se propone una duración de ocho a diez minutos, ajustable al tiempo indicado por el docente.
+
+La [guía de sustentación](anexos.md) incluye un orden de exposición, demostraciones y preguntas esperables. Durante la presentación se mostrarán el modelo Promela, las salidas de Spin, la tabla de rendimiento, tres GAPs prioritarios y el historial del repositorio.
+
+La grabación o enlace de sustentación queda pendiente. Tener un guion no sustituye la exposición ni su evidencia.
+
+## 8. Historial Gitflow y participación — 2 puntos
+
+El historial consultado muestra aportes atribuibles a dos integrantes:
+
+| Integrante | Evidencia observada | Alcance |
+|---|---|---|
+| Karim Wagner Samanamud Mosquera | `08f851f`, `a41a60e`, `f9a7181` y commits de integración. | Inicio del proyecto, contenido de implementación y documentación. |
+| Juan Diego Adrián Sánchez Sánchez | `e9cd116`, “Add README”, integrado mediante `1616a82`. | Contribución al README incorporada por PR. |
+| Tomas Alonso Pastor Salazar | No se encontró un commit atribuible en el historial disponible. | Participación pendiente de acreditar. |
+
+Los dos correos de `KarimS21` en el historial corresponden al mismo nombre de autor; no se cuentan como integrantes distintos.
+
+El remoto consultado solo publica la rama `main`. El merge de un PR demuestra colaboración, pero el historial disponible no acredita el uso completo de Gitflow con `develop`, ramas de funcionalidad e integración de entregas.
+
+El [anexo de Git](anexos.md#anexo-d-historial-y-participación) contiene los comandos, el registro y los pasos propuestos para completar la evidencia con contribuciones reales. No se crearon commits atribuidos a otras personas ni se reconstruyó artificialmente el historial.
+
+## 9. Anexos, reproducibilidad y pendientes
+
+| Anexo | Contenido |
+|---|---|
+| A | [Modelo Promela](../promela/worker_pool.pml), [script de verificación](../scripts/verify_spin.sh) y [salidas de Spin](../results/spin-safety.txt). |
+| B | [Prompt de IA](ai-code-review-prompt.md) e [informe de GAPs](gap-analysis.md). Falta la captura o exportación de la interacción. |
+| C | [Tiempos](../results/inference_runs.csv), [recursos](../results/resource_runs.csv) y [gráfico](../results/inference_speedup.png). |
+| D | [Registro del historial](../results/git-history.txt) y [guía para evidenciar Gitflow](anexos.md#anexo-d-historial-y-participación). |
+| E | [Guion y preguntas de sustentación](anexos.md#anexo-e-guía-de-sustentación). Falta la grabación o su enlace. |
+
+Para preparar el dataset se puede ejecutar el notebook `TrabajoParcial.ipynb`, que requiere pandas y un motor Parquet. También se puede exportar el Parquet procesado existente desde la raíz del proyecto:
+
+```powershell
+python -c "import pandas as pd; pd.read_parquet('processed/yellow_tripdata_2026-01.parquet').to_csv('processed/yellow_tripdata_2026-01.csv', index=False)"
+```
+
+Una vez que Go esté disponible, ejecutar:
 
 ```powershell
 go test -count=1 ./...
 go vet ./...
+go test -race -count=1 ./...
+go run ./cmd/experiment -max-rows 100000 -train-rows 10000 -epochs 1 -workers 1,2,4,8 -runs 11 -trim 0.2 -output results/inference_runs.csv
 ```
 
-Para repetir la verificación Promela utilizando Docker Desktop:
+El detector de carreras requiere un entorno compatible con cgo y compilador C. Durante esta revisión Windows bloqueó `go.exe` por una directiva de control de aplicaciones; no se presentan las pruebas como aprobadas.
 
-```powershell
-docker run --rm --entrypoint sh `
-    -v "${PWD}\promela:/model" `
-    kuniwak/spin `
-    -lc "apk add --no-cache gcc musl-dev >/dev/null && spin -run /model/worker_pool.pml"
-```
-
-Para ejecutar una medición repetida:
-
-```powershell
-go run ./cmd/experiment `
-  -max-rows 100000 `
-  -train-rows 10000 `
-  -epochs 1 `
-  -workers 1,2,4,8 `
-  -runs 11 `
-  -trim 0.2 `
-  -output results/inference_runs.csv
-```
-
-Para generar el gráfico:
-
-```powershell
-py -3 scripts/plot_experiment.py
-```
-
-Para ejecutar con el dataset completo, se puede utilizar `-max-rows 0`, aunque el tiempo y el consumo de memoria serán mayores:
-
-```powershell
-go run ./cmd/experiment -max-rows 0 -workers 1,2,4,8
-```
+Para cerrar la entrega faltan la ejecución de las comprobaciones Go, la evidencia de la conversación con IA, la sustentación y la participación de todos los integrantes mediante un flujo Git verificable.

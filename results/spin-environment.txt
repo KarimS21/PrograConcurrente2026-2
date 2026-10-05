@@ -1,0 +1,3 @@
+Spin Version 6.5.2 -- 6 December 2019
+gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+84d19224e27245ed76c45501cff86eb460db4a4129d1d04748b75cb46386eb9e  /mnt/d/Concurrentes/PrograConcurrente2026-2/promela/worker_pool.pml

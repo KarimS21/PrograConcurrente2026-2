@@ -1,0 +1,49 @@
+Depth=     167 States=    1e+06 Transitions=  3.2e+06 Memory=   163.007	t=     2.09 R=   5e+05
+Depth=     167 States=    2e+06 Transitions=  6.4e+06 Memory=   197.382	t=     4.54 R=   4e+05
+
+(Spin Version 6.5.2 -- 6 December 2019)
+	+ Partial Order Reduction
+
+Full statespace search for:
+	never claim         	+ (all_jobs_complete)
+	assertion violations	+ (if within scope of claim)
+	acceptance   cycles 	+ (fairness disabled)
+	invalid end states	- (disabled by never claim)
+
+State-vector 96 byte, depth reached 167, errors: 0
+  1158256 states, stored (2.31651e+06 visited)
+  5094973 states, matched
+  7411485 transitions (= visited+matched)
+        0 atomic steps
+hash conflicts:    136383 (resolved)
+
+Stats on memory usage (in Megabytes):
+  136.970	equivalent memory usage for states (stored*(State-vector + overhead))
+   79.792	actual memory usage for states (compression: 58.26%)
+         	state-vector as stored = 44 byte + 28 byte overhead
+  128.000	memory used for hash table (-w24)
+    0.534	memory used for DFS stack (-m10000)
+  208.222	total actual memory usage
+
+
+unreached in proctype Producer
+	(0 of 11 states)
+unreached in proctype Worker
+	(0 of 11 states)
+unreached in proctype Closer
+	(0 of 3 states)
+unreached in init
+	/mnt/d/Concurrentes/PrograConcurrente2026-2/promela/worker_pool.pml:58, state 15, "assert((completedCount==5))"
+	/mnt/d/Concurrentes/PrograConcurrente2026-2/promela/worker_pool.pml:59, state 16, "index = 0"
+	/mnt/d/Concurrentes/PrograConcurrente2026-2/promela/worker_pool.pml:60, state 18, "assert(completed[index])"
+	/mnt/d/Concurrentes/PrograConcurrente2026-2/promela/worker_pool.pml:59, state 19, "index = (index+1)"
+	/mnt/d/Concurrentes/PrograConcurrente2026-2/promela/worker_pool.pml:59, state 22, "((index<=(5-1)))"
+	/mnt/d/Concurrentes/PrograConcurrente2026-2/promela/worker_pool.pml:59, state 22, "else"
+	/mnt/d/Concurrentes/PrograConcurrente2026-2/promela/worker_pool.pml:62, state 25, "-end-"
+	(6 of 25 states)
+unreached in claim all_jobs_complete
+	_spin_nvr.tmp:6, state 6, "-end-"
+	(1 of 6 states)
+
+pan: elapsed time 5.13 seconds
+pan: rate 451561.79 states/second

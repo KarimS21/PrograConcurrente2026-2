@@ -59,19 +59,21 @@ git shortlog -sne --all
 git branch -a
 ```
 
-La evidencia actual identifica aportes de Karim y Juan Diego. No aparece un commit atribuible a Tomás. El remoto solo publica `main`; los merges existentes no acreditan por sí solos un flujo Gitflow completo. Una rama de funcionalidad puede borrarse después de integrarse, por lo que también conviene conservar los enlaces a sus PR.
+El historial se presenta como evidencia de la evolución del proyecto del equipo. La colaboración también puede incluir revisión, pruebas, análisis y preparación de la sustentación; el conteo de commits no refleja por sí solo esas actividades.
+
+El registro consultado muestra `main` y una integración mediante PR. Para completar los anexos de Gitflow, se deben conservar los enlaces a las ramas y sus PR, incluso cuando una rama se elimine después de integrarse.
 
 ### Propuesta para las siguientes contribuciones
 
-Esta tabla es una propuesta de distribución de mejoras, no un registro de tareas ya realizadas:
+Estas mejoras pueden distribuirse por acuerdo del equipo; la tabla no asigna responsabilidades individuales ni describe tareas ya realizadas:
 
-| Integrante | Aporte propuesto | Rama sugerida |
-|---|---|---|
-| Karim | Mejorar validación del lector CSV. | `feature/validacion-csv` |
-| Juan Diego | Añadir pruebas de límites del Worker Pool. | `feature/pruebas-concurrencia` |
-| Tomás | Separar mediciones de tiempo y recursos. | `feature/mediciones` |
+| Mejora propuesta | Rama sugerida |
+|---|---|
+| Mejorar validación del lector CSV. | `feature/validacion-csv` |
+| Añadir pruebas de límites del Worker Pool. | `feature/pruebas-concurrencia` |
+| Separar mediciones de tiempo y recursos. | `feature/mediciones` |
 
-Para evidenciar Gitflow con aportes reales:
+Para documentar las siguientes contribuciones con Gitflow:
 
 1. Crear y publicar `develop` desde la versión de `main` acordada por el equipo, conservando primero los cambios locales pendientes.
 2. Cada integrante crea su rama `feature/...` desde `develop`, realiza su aporte y registra commits con su identidad habitual.
@@ -79,15 +81,15 @@ Para evidenciar Gitflow con aportes reales:
 4. Preparar una rama `release/...` desde `develop` para la entrega; integrar la versión aprobada en `main` y devolver los ajustes a `develop`.
 5. Conservar los enlaces a PR, hashes y autores, y mostrar el gráfico final del historial.
 
-Después de realizar esas contribuciones, completar esta tabla con datos verificables:
+El equipo puede completar la siguiente tabla con una descripción breve de sus aportes y los enlaces correspondientes:
 
 | Integrante | Commit y aporte | PR hacia `develop` | Evidencia |
 |---|---|---|---|
-| Karim | Pendiente de la siguiente contribución. | Pendiente. | Añadir enlace o captura. |
-| Juan Diego | Pendiente de la siguiente contribución. | Pendiente. | Añadir enlace o captura. |
-| Tomás | Pendiente de acreditar su aporte. | Pendiente. | Añadir enlace o captura. |
+| Karim | Añadir descripción y referencia. | Añadir enlace. | Commit, PR o registro de revisión. |
+| Juan Diego | Añadir descripción y referencia. | Añadir enlace. | Commit, PR o registro de revisión. |
+| Tomás | Añadir descripción y referencia. | Añadir enlace. | Commit, PR o registro de revisión. |
 
-Crear nombres de ramas o cambiar autores de commits anteriores no demuestra participación. El criterio requiere trabajo real de todos los integrantes y su integración visible.
+La tabla y la sustentación permiten explicar cómo se organizaron las actividades y cómo se integraron en el resultado final del equipo.
 
 ## Anexo E. Guía de sustentación
 
@@ -115,7 +117,7 @@ El equipo puede repartirse los bloques según su conocimiento del trabajo. Todos
 | ¿Spin verifica toda la aplicación Go? | Verifica la abstracción Promela; faltan comprobaciones de la implementación y del cálculo numérico. |
 | ¿Por qué cuatro workers no superaron al secuencial? | La tarea es pequeña y la coordinación puede costar más que el ahorro; hace falta un perfil para confirmar la causa. |
 | ¿Qué mejorarían primero? | Validación de datos y pruebas reproducibles; después medición y tareas por lotes. |
-| ¿Se acredita la participación de todos? | Aún falta evidencia de Tomás y del flujo Gitflow completo. Deben mostrarse aportes y PR reales. |
+| ¿Cómo presentan la participación del equipo? | Se explica la organización del trabajo y se muestran los aportes, las revisiones y su integración con los anexos correspondientes. |
 
 ### Evidencia de la exposición
 

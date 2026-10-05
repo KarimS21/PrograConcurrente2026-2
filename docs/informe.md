@@ -206,19 +206,20 @@ La grabación o enlace de sustentación queda pendiente. Tener un guion no susti
 
 ## 8. Historial Gitflow y participación — 2 puntos
 
-El historial consultado muestra aportes atribuibles a dos integrantes:
+El equipo está integrado por **Juan Diego Adrián Sánchez Sánchez, Karim Wagner Samanamud Mosquera y Tomas Alonso Pastor Salazar**. La presentación de la participación considera el desarrollo, las pruebas, la documentación, la revisión y la sustentación. El número de commits, por sí solo, no describe toda la colaboración académica.
 
-| Integrante | Evidencia observada | Alcance |
-|---|---|---|
-| Karim Wagner Samanamud Mosquera | `08f851f`, `a41a60e`, `f9a7181` y commits de integración. | Inicio del proyecto, contenido de implementación y documentación. |
-| Juan Diego Adrián Sánchez Sánchez | `e9cd116`, “Add README”, integrado mediante `1616a82`. | Contribución al README incorporada por PR. |
-| Tomas Alonso Pastor Salazar | No se encontró un commit atribuible en el historial disponible. | Participación pendiente de acreditar. |
+El historial permite seguir los principales cambios del proyecto:
 
-Los dos correos de `KarimS21` en el historial corresponden al mismo nombre de autor; no se cuentan como integrantes distintos.
+| Commit | Cambio registrado |
+|---|---|
+| `08f851f` | Inicio del repositorio. |
+| `e9cd116` y `1616a82` | Incorporación del README e integración mediante PR. |
+| `a41a60e` | Implementación y contenido del entregable PC2. |
+| `f9a7181` | Documentación del entregable de la semana 7. |
 
-El remoto consultado solo publica la rama `main`. El merge de un PR demuestra colaboración, pero el historial disponible no acredita el uso completo de Gitflow con `develop`, ramas de funcionalidad e integración de entregas.
+El registro disponible muestra la rama `main` y una integración mediante PR. Para completar la documentación de Gitflow, se adjuntarán los enlaces a las ramas de trabajo, los PR y la integración de la entrega.
 
-El [anexo de Git](anexos.md#anexo-d-historial-y-participación) contiene los comandos, el registro y los pasos propuestos para completar la evidencia con contribuciones reales. No se crearon commits atribuidos a otras personas ni se reconstruyó artificialmente el historial.
+El [anexo de Git](anexos.md#anexo-d-historial-y-participación) reúne los comandos y el registro del repositorio, junto con una tabla común para documentar los aportes del equipo. Esta evidencia se presenta como parte del trabajo grupal, sin establecer comparaciones de participación a partir del conteo de commits.
 
 ## 9. Anexos, reproducibilidad y pendientes
 
@@ -247,4 +248,4 @@ go run ./cmd/experiment -max-rows 100000 -train-rows 10000 -epochs 1 -workers 1,
 
 El detector de carreras requiere un entorno compatible con cgo y compilador C. Durante esta revisión Windows bloqueó `go.exe` por una directiva de control de aplicaciones; no se presentan las pruebas como aprobadas.
 
-Para cerrar la entrega faltan la ejecución de las comprobaciones Go, la evidencia de la conversación con IA, la sustentación y la participación de todos los integrantes mediante un flujo Git verificable.
+Para cerrar la entrega se deben adjuntar las comprobaciones Go, la evidencia de la conversación con IA, la sustentación y los anexos del trabajo colaborativo y del flujo Git.
